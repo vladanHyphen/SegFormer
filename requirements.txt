@@ -1,0 +1,12 @@
+streamlit>=1.24.0
+mercantile
+requests
+pillow
+numpy
+pandas
+pyproj
+opencv-python
+inference-sdk
+xlsxwriter
+matplotlib
+supervision
