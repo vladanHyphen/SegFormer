@@ -3,24 +3,6 @@ import mercantile
 import requests
 from PIL import Image
 import numpy as np
-<<<<<<< HEAD
-import pandas as pd
-import io
-from pyproj import Transformer
-from inference_sdk import InferenceHTTPClient
-
-# ---- ROBOFLOW SETTINGS ----
-ROBOFLOW_API_KEY = "6bkg1HjCQc6QPtEDWj1p"
-MODEL_ID = "roof-mws17/1"  # Make sure this matches your project/version
-
-st.set_page_config(page_title="Automated Roof Detection from Satellite Map", layout="wide")
-st.title("Satellite Roof Detector — Roboflow Inference SDK")
-st.markdown("""
-1. Enter the bounding box for your area of interest (in WGS84 lat/lon).
-2. Download a high-resolution satellite map patch (Esri World Imagery).
-3. Detect buildings using your Roboflow model.
-4. Download the resulting Excel with real-world coordinates.
-=======
 from pyproj import Transformer
 import io
 from shapely.geometry import Polygon
@@ -39,7 +21,6 @@ st.markdown("""
 2. Download a high-resolution Esri satellite map patch.
 3. Run SegFormer segmentation.
 4. Extract roof polygons and export geo-coordinates to Excel or GeoJSON.
->>>>>>> cc4767b (Initial commit)
 """)
 
 # ---- BOUNDING BOX INPUTS ----
@@ -50,28 +31,15 @@ min_lat = col1.number_input("Min Latitude (bottom)", value=-25.718, format="%.6f
 max_lat = col2.number_input("Max Latitude (top)", value=-25.715, format="%.6f")
 zoom = st.slider("Zoom Level (higher = sharper, smaller area, default 18)", 15, 20, 18)
 
-<<<<<<< HEAD
-if st.button("Download Map and Detect Buildings"):
-=======
 if st.button("Download Map and Run Segmentation"):
->>>>>>> cc4767b (Initial commit)
     if min_lat >= max_lat or min_lon >= max_lon:
         st.error("Error: Min Latitude/Longitude must be less than Max Latitude/Longitude.")
         st.stop()
 
     try:
-<<<<<<< HEAD
-        st.info("Downloading map tiles from Esri World Imagery...")
-        tiles = list(mercantile.tiles(min_lon, min_lat, max_lon, max_lat, zoom))
-        if len(tiles) == 0:
-            st.error("No tiles to download for this bounding box and zoom level. Try a larger area or different coordinates.")
-            st.stop()
-
-=======
         # Download mosaic
         st.info("Downloading map tiles from Esri World Imagery...")
         tiles = list(mercantile.tiles(min_lon, min_lat, max_lon, max_lat, zoom))
->>>>>>> cc4767b (Initial commit)
         tile_url = "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         tile_size = 256
         cols = max([t.x for t in tiles]) - min([t.x for t in tiles]) + 1
@@ -86,10 +54,6 @@ if st.button("Download Map and Run Segmentation"):
 
         mosaic = Image.new('RGB', (mosaic_width, mosaic_height))
         min_x, min_y = min([t.x for t in tiles]), min([t.y for t in tiles])
-<<<<<<< HEAD
-        failed_tiles = 0
-=======
->>>>>>> cc4767b (Initial commit)
         for t in tiles:
             url = tile_url.format(z=zoom, x=t.x, y=t.y)
             try:
@@ -97,24 +61,12 @@ if st.button("Download Map and Run Segmentation"):
                 resp.raise_for_status()
                 img = Image.open(io.BytesIO(resp.content))
             except Exception as e:
-<<<<<<< HEAD
-                failed_tiles += 1
-                st.warning(f"Could not download tile x={t.x}, y={t.y} (zoom {zoom}): {e}")
-=======
->>>>>>> cc4767b (Initial commit)
                 img = Image.new('RGB', (tile_size, tile_size), (0, 0, 0))
             x_offset = (t.x - min_x) * tile_size
             y_offset = (t.y - min_y) * tile_size
             mosaic.paste(img, (x_offset, y_offset))
-<<<<<<< HEAD
-        if failed_tiles > 0:
-            st.warning(f"{failed_tiles} tiles could not be loaded and were filled with black.")
-
-        # Optional: Crop mosaic to precise AOI
-=======
 
         # Optional: Crop to precise AOI
->>>>>>> cc4767b (Initial commit)
         try:
             bbox_ul = mercantile.xy_bounds(mercantile.Tile(min_x, min_y, zoom))
             bbox_lr = mercantile.xy_bounds(mercantile.Tile(min_x+cols-1, min_y+rows-1, zoom))
@@ -136,56 +88,10 @@ if st.button("Download Map and Run Segmentation"):
             py_bottom = min(mosaic.height, py_bottom)
             if px_right - px_left > 0 and py_bottom - py_top > 0:
                 mosaic = mosaic.crop((px_left, py_top, px_right, py_bottom))
-<<<<<<< HEAD
-            else:
-                st.warning("Invalid crop area calculated. Using full mosaic.")
-=======
->>>>>>> cc4767b (Initial commit)
         except Exception as e:
             st.warning(f"Optional cropping skipped (pyproj error): {e}. Map covers the bounding box.")
 
         st.image(mosaic, caption="Downloaded Map", use_container_width=True)
-<<<<<<< HEAD
-        st.success("Map downloaded. Sending to Roboflow for building detection...")
-
-        import tempfile
-
-        # --- ROBOFLOW INFERENCE: save image to a temporary file ---
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
-            mosaic.save(tmp_file, format='PNG')
-            tmp_file.flush()
-            tmp_file_path = tmp_file.name
-
-        CLIENT = InferenceHTTPClient(
-            api_url="https://serverless.roboflow.com",
-            api_key=ROBOFLOW_API_KEY
-        )
-
-        result = CLIENT.infer(tmp_file_path, model_id=MODEL_ID)
-        predictions = result.get("predictions", [])
-
-        # Overlay detections on the image using PIL
-        mosaic_draw = mosaic.copy()
-        try:
-            from PIL import ImageDraw
-            draw = ImageDraw.Draw(mosaic_draw)
-            for pred in predictions:
-                x = int(pred["x"])
-                y = int(pred["y"])
-                w = int(pred["width"])
-                h = int(pred["height"])
-                left = x - w // 2
-                top = y - h // 2
-                right = x + w // 2
-                bottom = y + h // 2
-                draw.rectangle([left, top, right, bottom], outline="green", width=3)
-                draw.text((left, top - 10), pred.get("class", ""), fill="green")
-            st.image(mosaic_draw, caption="Buildings detected by Roboflow", use_container_width=True)
-        except Exception as e:
-            st.warning(f"Could not overlay detections: {e}")
-
-        # ---- Convert detections to coordinates ----
-=======
 
         # --- Load SegFormer model (cached) ---
         @st.cache_resource(show_spinner=False)
@@ -217,7 +123,6 @@ if st.button("Download Map and Run Segmentation"):
         st.write(f"Polygons found: {len(contours)}")
 
         # --- COORDINATE TRANSFORM ---
->>>>>>> cc4767b (Initial commit)
         transformer_back = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
         x0, y0 = bbox_ul.left, bbox_lr.top
         x1, y1 = bbox_lr.right, bbox_ul.bottom
@@ -229,24 +134,6 @@ if st.button("Download Map and Run Segmentation"):
             lon, lat = transformer_back.transform(x, y)
             return lon, lat
 
-<<<<<<< HEAD
-        df = pd.DataFrame([
-            {
-                'Building_ID': idx + 1,
-                'X_pixel': int(pred["x"]),
-                'Y_pixel': int(pred["y"]),
-                'Longitude': pixel_to_lonlat(pred["x"], pred["y"])[0],
-                'Latitude': pixel_to_lonlat(pred["x"], pred["y"])[1],
-                'Width': pred["width"],
-                'Height': pred["height"],
-                'Class': pred.get("class", ""),
-                'Confidence': pred.get("confidence", "")
-            }
-            for idx, pred in enumerate(predictions)
-        ])
-        if len(df) > 0:
-            st.dataframe(df.head(10))
-=======
         features = []
         geojson_features = []
         for idx, cnt in enumerate(contours):
@@ -279,24 +166,13 @@ if st.button("Download Map and Run Segmentation"):
         df = pd.DataFrame(features)
         st.dataframe(df.head(10))
 
-        # --- Excel Export (as before) ---
+        # --- Excel Export ---
         if not df.empty:
->>>>>>> cc4767b (Initial commit)
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df.to_excel(writer, index=False)
             output.seek(0)
             st.download_button(
-<<<<<<< HEAD
-                label="Download Excel with Building Coordinates (Lon/Lat)",
-                data=output,
-                file_name="building_centroids_lonlat.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            st.success("Done! Download your Excel above.")
-        else:
-            st.warning("No buildings detected by Roboflow in this area.")
-=======
                 label="Download Excel with Roof Polygons (WKT)",
                 data=output,
                 file_name="roof_polygons_lonlat.xlsx",
@@ -318,14 +194,10 @@ if st.button("Download Map and Run Segmentation"):
                 mime="application/geo+json"
             )
             st.success("Download GeoJSON for GIS use.")
->>>>>>> cc4767b (Initial commit)
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
         import traceback
-<<<<<<< HEAD
-        st.text(traceback.format_exc())
-=======
         st.text(traceback.format_exc())
 
->>>>>>> cc4767b (Initial commit)
+
