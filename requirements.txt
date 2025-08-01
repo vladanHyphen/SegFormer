@@ -10,3 +10,16 @@ inference-sdk
 xlsxwriter
 matplotlib
 supervision
+streamlit>=1.24.0
+torch
+transformers
+pillow
+matplotlib
+numpy
+pandas
+mercantile
+requests
+pyproj
+opencv-python
+shapely
+xlsxwriter

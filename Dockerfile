@@ -30,3 +30,23 @@ ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
 # Set Streamlit to listen on all interfaces and Cloud Run port
 CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0"]
+=======
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install OS-level dependencies for scientific Python
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgl1-mesa-glx \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+COPY . .
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+>>>>>>> cc4767b (Initial commit)
