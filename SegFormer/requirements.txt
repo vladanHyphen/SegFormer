@@ -1,0 +1,13 @@
+streamlit
+mercantile
+requests
+pillow
+numpy
+pyproj
+shapely
+pandas
+opencv-python
+transformers
+torch
+matplotlib
+xlsxwriter
