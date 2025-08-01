@@ -3,6 +3,7 @@ import mercantile
 import requests
 from PIL import Image
 import numpy as np
+<<<<<<< HEAD
 import pandas as pd
 import io
 from pyproj import Transformer
@@ -19,6 +20,26 @@ st.markdown("""
 2. Download a high-resolution satellite map patch (Esri World Imagery).
 3. Detect buildings using your Roboflow model.
 4. Download the resulting Excel with real-world coordinates.
+=======
+from pyproj import Transformer
+import io
+from shapely.geometry import Polygon
+import pandas as pd
+import cv2
+from transformers import SegformerFeatureExtractor, SegformerForSemanticSegmentation
+import torch
+import matplotlib.pyplot as plt
+import json
+
+st.set_page_config(page_title="SegFormer Satellite Segmentation", layout="wide")
+st.title("Satellite Roof Segmentation — SegFormer + Esri Mosaic")
+
+st.markdown("""
+1. Enter the bounding box for your area of interest (WGS84 lat/lon).
+2. Download a high-resolution Esri satellite map patch.
+3. Run SegFormer segmentation.
+4. Extract roof polygons and export geo-coordinates to Excel or GeoJSON.
+>>>>>>> cc4767b (Initial commit)
 """)
 
 # ---- BOUNDING BOX INPUTS ----
@@ -29,18 +50,28 @@ min_lat = col1.number_input("Min Latitude (bottom)", value=-25.718, format="%.6f
 max_lat = col2.number_input("Max Latitude (top)", value=-25.715, format="%.6f")
 zoom = st.slider("Zoom Level (higher = sharper, smaller area, default 18)", 15, 20, 18)
 
+<<<<<<< HEAD
 if st.button("Download Map and Detect Buildings"):
+=======
+if st.button("Download Map and Run Segmentation"):
+>>>>>>> cc4767b (Initial commit)
     if min_lat >= max_lat or min_lon >= max_lon:
         st.error("Error: Min Latitude/Longitude must be less than Max Latitude/Longitude.")
         st.stop()
 
     try:
+<<<<<<< HEAD
         st.info("Downloading map tiles from Esri World Imagery...")
         tiles = list(mercantile.tiles(min_lon, min_lat, max_lon, max_lat, zoom))
         if len(tiles) == 0:
             st.error("No tiles to download for this bounding box and zoom level. Try a larger area or different coordinates.")
             st.stop()
 
+=======
+        # Download mosaic
+        st.info("Downloading map tiles from Esri World Imagery...")
+        tiles = list(mercantile.tiles(min_lon, min_lat, max_lon, max_lat, zoom))
+>>>>>>> cc4767b (Initial commit)
         tile_url = "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         tile_size = 256
         cols = max([t.x for t in tiles]) - min([t.x for t in tiles]) + 1
@@ -55,7 +86,10 @@ if st.button("Download Map and Detect Buildings"):
 
         mosaic = Image.new('RGB', (mosaic_width, mosaic_height))
         min_x, min_y = min([t.x for t in tiles]), min([t.y for t in tiles])
+<<<<<<< HEAD
         failed_tiles = 0
+=======
+>>>>>>> cc4767b (Initial commit)
         for t in tiles:
             url = tile_url.format(z=zoom, x=t.x, y=t.y)
             try:
@@ -63,16 +97,24 @@ if st.button("Download Map and Detect Buildings"):
                 resp.raise_for_status()
                 img = Image.open(io.BytesIO(resp.content))
             except Exception as e:
+<<<<<<< HEAD
                 failed_tiles += 1
                 st.warning(f"Could not download tile x={t.x}, y={t.y} (zoom {zoom}): {e}")
+=======
+>>>>>>> cc4767b (Initial commit)
                 img = Image.new('RGB', (tile_size, tile_size), (0, 0, 0))
             x_offset = (t.x - min_x) * tile_size
             y_offset = (t.y - min_y) * tile_size
             mosaic.paste(img, (x_offset, y_offset))
+<<<<<<< HEAD
         if failed_tiles > 0:
             st.warning(f"{failed_tiles} tiles could not be loaded and were filled with black.")
 
         # Optional: Crop mosaic to precise AOI
+=======
+
+        # Optional: Crop to precise AOI
+>>>>>>> cc4767b (Initial commit)
         try:
             bbox_ul = mercantile.xy_bounds(mercantile.Tile(min_x, min_y, zoom))
             bbox_lr = mercantile.xy_bounds(mercantile.Tile(min_x+cols-1, min_y+rows-1, zoom))
@@ -94,12 +136,16 @@ if st.button("Download Map and Detect Buildings"):
             py_bottom = min(mosaic.height, py_bottom)
             if px_right - px_left > 0 and py_bottom - py_top > 0:
                 mosaic = mosaic.crop((px_left, py_top, px_right, py_bottom))
+<<<<<<< HEAD
             else:
                 st.warning("Invalid crop area calculated. Using full mosaic.")
+=======
+>>>>>>> cc4767b (Initial commit)
         except Exception as e:
             st.warning(f"Optional cropping skipped (pyproj error): {e}. Map covers the bounding box.")
 
         st.image(mosaic, caption="Downloaded Map", use_container_width=True)
+<<<<<<< HEAD
         st.success("Map downloaded. Sending to Roboflow for building detection...")
 
         import tempfile
@@ -139,6 +185,39 @@ if st.button("Download Map and Detect Buildings"):
             st.warning(f"Could not overlay detections: {e}")
 
         # ---- Convert detections to coordinates ----
+=======
+
+        # --- Load SegFormer model (cached) ---
+        @st.cache_resource(show_spinner=False)
+        def load_model():
+            feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b5-finetuned-cityscapes-1024-1024")
+            model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b5-finetuned-cityscapes-1024-1024")
+            model.eval()
+            return feature_extractor, model
+        feature_extractor, model = load_model()
+
+        # --- Segmentation inference ---
+        inputs = feature_extractor(images=mosaic, return_tensors="pt")
+        with torch.no_grad():
+            outputs = model(**inputs)
+        seg = outputs.logits.argmax(dim=1)[0].cpu().numpy()
+
+        # --- Show overlay ---
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.imshow(mosaic)
+        ax.imshow(seg, alpha=0.5, cmap='jet')
+        ax.axis('off')
+        st.pyplot(fig)
+
+        # --- EXTRACT ROOF POLYGONS FROM MASK ---
+        st.info("Extracting polygons from segmentation mask (this may take a few seconds)...")
+        mask = (seg > 0).astype(np.uint8) * 255  # Edit this line to select the correct class if needed
+
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        st.write(f"Polygons found: {len(contours)}")
+
+        # --- COORDINATE TRANSFORM ---
+>>>>>>> cc4767b (Initial commit)
         transformer_back = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
         x0, y0 = bbox_ul.left, bbox_lr.top
         x1, y1 = bbox_lr.right, bbox_ul.bottom
@@ -150,6 +229,7 @@ if st.button("Download Map and Detect Buildings"):
             lon, lat = transformer_back.transform(x, y)
             return lon, lat
 
+<<<<<<< HEAD
         df = pd.DataFrame([
             {
                 'Building_ID': idx + 1,
@@ -166,11 +246,48 @@ if st.button("Download Map and Detect Buildings"):
         ])
         if len(df) > 0:
             st.dataframe(df.head(10))
+=======
+        features = []
+        geojson_features = []
+        for idx, cnt in enumerate(contours):
+            if cv2.contourArea(cnt) < 30:
+                continue
+            coords = [pixel_to_lonlat(float(pt[0][0]), float(pt[0][1])) for pt in cnt]
+            poly = Polygon(coords)
+            features.append({
+                "Roof_ID": idx + 1,
+                "Lon_Lat_WKT": poly.wkt,
+                "Area_pixels": cv2.contourArea(cnt),
+                "Num_points": len(coords)
+            })
+            # Ensure GeoJSON polygon is closed
+            if coords[0] != coords[-1]:
+                coords.append(coords[0])
+            geojson_features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [coords]
+                },
+                "properties": {
+                    "Roof_ID": idx + 1,
+                    "Area_pixels": cv2.contourArea(cnt),
+                    "Num_points": len(coords)
+                }
+            })
+
+        df = pd.DataFrame(features)
+        st.dataframe(df.head(10))
+
+        # --- Excel Export (as before) ---
+        if not df.empty:
+>>>>>>> cc4767b (Initial commit)
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df.to_excel(writer, index=False)
             output.seek(0)
             st.download_button(
+<<<<<<< HEAD
                 label="Download Excel with Building Coordinates (Lon/Lat)",
                 data=output,
                 file_name="building_centroids_lonlat.xlsx",
@@ -179,8 +296,36 @@ if st.button("Download Map and Detect Buildings"):
             st.success("Done! Download your Excel above.")
         else:
             st.warning("No buildings detected by Roboflow in this area.")
+=======
+                label="Download Excel with Roof Polygons (WKT)",
+                data=output,
+                file_name="roof_polygons_lonlat.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            st.success("Download Excel for geo-coordinates of detected roofs.")
+
+        # --- GeoJSON Export ---
+        if geojson_features:
+            geojson_dict = {
+                "type": "FeatureCollection",
+                "features": geojson_features
+            }
+            geojson_str = json.dumps(geojson_dict)
+            st.download_button(
+                label="Download GeoJSON (for GIS)",
+                data=geojson_str,
+                file_name="roof_polygons.geojson",
+                mime="application/geo+json"
+            )
+            st.success("Download GeoJSON for GIS use.")
+>>>>>>> cc4767b (Initial commit)
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
         import traceback
+<<<<<<< HEAD
         st.text(traceback.format_exc())
+=======
+        st.text(traceback.format_exc())
+
+>>>>>>> cc4767b (Initial commit)
