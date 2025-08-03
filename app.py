@@ -12,6 +12,7 @@ from transformers import SegformerFeatureExtractor, SegformerForSemanticSegmenta
 import torch
 import matplotlib.pyplot as plt
 import json
+import traceback
 
 st.set_page_config(page_title="SegFormer Satellite Segmentation", layout="wide")
 st.title("Satellite Roof Segmentation — SegFormer + Esri Mosaic")
@@ -93,16 +94,17 @@ if st.button("Download Map and Run Segmentation"):
 
         st.image(mosaic, caption="Downloaded Map", use_container_width=True)
 
-        # --- Load SegFormer model (cached) ---
-        @st.cache_resource(show_spinner=False)
+        # --- Load SegFormer model (cached, using B0 for speed/compatibility) ---
+        @st.cache_resource(show_spinner=True)
         def load_model():
-            feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b5-finetuned-cityscapes-1024-1024")
-            model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b5-finetuned-cityscapes-1024-1024")
+            feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512")
+            model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512")
             model.eval()
             return feature_extractor, model
         feature_extractor, model = load_model()
 
         # --- Segmentation inference ---
+        st.info("Running SegFormer segmentation...")
         inputs = feature_extractor(images=mosaic, return_tensors="pt")
         with torch.no_grad():
             outputs = model(**inputs)
@@ -117,7 +119,7 @@ if st.button("Download Map and Run Segmentation"):
 
         # --- EXTRACT ROOF POLYGONS FROM MASK ---
         st.info("Extracting polygons from segmentation mask (this may take a few seconds)...")
-        mask = (seg > 0).astype(np.uint8) * 255  # Edit this line to select the correct class if needed
+        mask = (seg > 0).astype(np.uint8) * 255  # You can change > 0 to == <class_index> for specific objects
 
         contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         st.write(f"Polygons found: {len(contours)}")
@@ -166,7 +168,7 @@ if st.button("Download Map and Run Segmentation"):
         df = pd.DataFrame(features)
         st.dataframe(df.head(10))
 
-        # --- Excel Export (as before) ---
+        # --- Excel Export ---
         if not df.empty:
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -197,5 +199,6 @@ if st.button("Download Map and Run Segmentation"):
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
-        import traceback
         st.text(traceback.format_exc())
+        print(traceback.format_exc())
+
